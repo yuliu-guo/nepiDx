@@ -1,0 +1,115 @@
+from __future__ import annotations
+import re
+import os
+import pathlib
+import pandas as pd
+from typing import List, Iterable, Optional, Union, Set
+
+############## for submit run in cluster ###################
+# snakemake -s snakefile --profile ../pbs-default/ -j 2 --cores 1 -k -p #
+############################################################
+
+
+configfile: 'config_example.yaml'
+ref_dict = config['reference']
+prediction_tools = ['netMHCpan', 'MHCflurry', 'PRIME2', 'netMHCstabpan']
+immunogenicity_tools = ['DeepImmuno', 'IEDB_immunogenicity', 'ICERFIRE']
+immunogenicity_tools_ms9mer = ['DeepImmuno', 'IEDB_immunogenicity']
+immunogenicity_tools_ms8mer = ['IEDB_immunogenicity']
+RESULTS = config["results_folder"]
+df = pd.read_csv(config['patient_list'], sep=',', index_col='patient_id')
+
+
+## Generate scratch folder
+#Pipeline working directory 
+pipeline_workdir = os.getcwd()
+
+def check_file_exist(wc, column:str):
+    #check if the file exist for certain filetype (HLA_allele, RNA_cram_path, ects)
+    val = df.loc[wc.patient_id, column]
+
+    if pd.isna(val):
+        return []
+    s = str(val).strip()
+
+    if s =="" or s.lower() in ("none", "nan"):
+        return []
+    
+    return s
+
+
+
+## Include modules
+include: workflow.basedir + '/workflow/initial_setup.smk'
+include: workflow.basedir + '/workflow/00_pre_process/rules.smk'
+include: workflow.basedir + '/workflow/00_variants_summary/rules.smk'
+include: workflow.basedir + '/workflow/01_hla-typing/rules.smk'
+include: workflow.basedir + '/workflow/02_mutated_peptide/rules.smk'
+include: workflow.basedir + '/workflow/03_pMHC_prediction/rules.smk'
+include: workflow.basedir + '/workflow/04_prediction_rank/rules.smk'
+include: workflow.basedir + '/workflow/05_TME/rules.smk'
+include: workflow.basedir + '/workflow/06_isovar/rules.smk'
+include: workflow.basedir + '/workflow/07_mhchammer/rules.smk'
+include: workflow.basedir + '/workflow/07_lohhla/rules.smk'
+include: workflow.basedir + '/workflow/07_spechla/rules.smk'
+include: workflow.basedir + '/workflow/08_immunogenicity/rules.smk'
+include: workflow.basedir + '/workflow/09_diann/rules.smk'
+include: workflow.basedir + '/workflow/99_database/rules.smk'
+
+
+
+prune_rule_if_empty_input(
+    rules.convert_cram_to_bam_tumor_RNA,
+    rules.run_sv_summary,
+    rules.collect_mutated_peptide_sv,
+    rules.t1k_tumor_RNA,
+    rules.t1k_tumor_DNA,
+    rules.t1k_normal_DNA,
+    rules.run_isovar,
+    rules.gene_signature_scores,
+    #rules.convert_cram_to_bam_mhchammer,
+    rules.convert_cram_to_bam_tumor_RNA,
+    rules.convert_cram_to_bam_tumor_DNA,
+    rules.convert_cram_to_bam_normal_DNA,
+    rules.run_spechla,
+    rules.run_mhchammer,
+    rules.run_diann,
+    rules.sv_rank_filter_merge_netMHCpan,
+)
+
+rule all:
+    input:
+        expand(config['results_folder'] + '/{patient_id}/00_variants_summary/{patient_id}_SNV_summary.csv', patient_id=get_patient_id_for_rule_all(df, option1=["snv"])),
+        expand(config['results_folder'] + '/{patient_id}/00_variants_summary/{patient_id}_genefusion_summary.csv',patient_id=get_patient_id_for_rule_all(df, option1=["fusion"])),
+        expand(config['results_folder'] + '/{patient_id}/00_variants_summary/{patient_id}_sv_summary.csv', patient_id=get_patient_id_for_rule_all(df, option1=["sv"])),
+        expand(config['results_folder'] +'/{patient_id}/01_hla-typing/{patient_id}_tumor_DNA_allele.tsv',patient_id=get_patient_id_for_rule_all(df,option1=["hla_tumor_dna"])),
+        expand(config['results_folder'] +'/{patient_id}/01_hla-typing/{patient_id}_normal_DNA_allele.tsv',patient_id=get_patient_id_for_rule_all(df,option1=["hla_normal_dna"])),
+        expand(config['results_folder'] + '/{patient_id}/02_mutated_peptide/{patient_id}_snv_nmer.fasta', patient_id=get_patient_id_for_rule_all(df, option1=["snv"])),
+        expand(config['results_folder'] + '/{patient_id}/02_mutated_peptide/{patient_id}_fusion_nmer.fasta', patient_id=get_patient_id_for_rule_all(df, option1=["fusion"])),
+        expand(config['results_folder'] + '/{patient_id}/02_mutated_peptide/{patient_id}_sv_nmer.fasta', patient_id=get_patient_id_for_rule_all(df, option1=["sv"])),
+        expand(config['results_folder'] + '/{patient_id}/03_pMHC_prediction/sv_{patient_id}_netMHCpan.csv', patient_id=df.index),
+        expand(config['results_folder'] + '/{patient_id}/03_pMHC_prediction/snv_{patient_id}_{tool}.csv', patient_id=get_patient_id_for_rule_all(df, option1=["snv"], option2="prediction"), tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/03_pMHC_prediction/fusion_{patient_id}_{tool}.csv', patient_id=df.index, tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/03_pMHC_prediction/ms9mer_{patient_id}_{tool}.csv', patient_id=DIANN_PATIENTS, tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/03_pMHC_prediction/ms8mer_{patient_id}_{tool}.csv', patient_id=DIANN_PATIENTS, tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/03_pMHC_prediction/snv_{patient_id}_{tool}_with_DAI.csv', patient_id=get_patient_id_for_rule_all(df, option1=["snv"], option2="prediction"), tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/03_pMHC_prediction/fusion_{patient_id}_{tool}_with_DAI.csv', patient_id=get_patient_id_for_rule_all(df, option1=["fusion"], option2="prediction"), tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/03_pMHC_prediction/sv_{patient_id}_{tool}_with_DAI.csv', patient_id=get_patient_id_for_rule_all(df, option1=["sv"], option2="prediction"), tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/04_neoepitopes/snv_{patient_id}_{tool}_merged_rank_filtered.csv', patient_id=get_patient_id_for_rule_all(df, option1=["snv"], option2="prediction"), tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/04_neoepitopes/fusion_{patient_id}_{tool}_merged_rank_filtered.csv', patient_id=get_patient_id_for_rule_all(df, option1=["fusion"], option2="prediction"), tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/04_neoepitopes/sv_{patient_id}_{tool}_merged_rank_filtered.csv', patient_id=get_patient_id_for_rule_all(df, option1=["sv"], option2="prediction"), tool=prediction_tools),
+        expand(config['results_folder'] + '/{patient_id}/05_TME/{patient_id}_gene_signatures.csv', patient_id=get_patient_id_for_rule_all(df, option1=["expression"])),
+        expand(config['results_folder'] + '/{patient_id}/06_isovar/{patient_id}_isovar.csv', patient_id=get_patient_id_for_rule_all(df, option1=["isovar"])),
+        expand(config['results_folder'] + '/flags/07_lohhla/{patient_id}_lohhla.done', patient_id=get_patient_id_for_rule_all(df, option1=["lohhla"])),
+        expand(config["results_folder"] + "/{patient_id}/07_spechla/freq.list", patient_id=get_patient_id_for_rule_all(df, option1=["spechla"])),
+        expand(config["results_folder"] + "/{patient_id}/07_spechla/merge.hla.copy.txt", patient_id=get_patient_id_for_rule_all(df, option1=["spechla"])),
+        expand(config['results_folder'] + '/flags/07_mhchammer/{patient_id}.done', patient_id=get_patient_id_for_rule_all(df, option1=["mhchammer"])),
+        expand(config['results_folder'] + '/{patient_id}/08_immunogenicity/snv_{patient_id}_{tool}.csv', patient_id=get_patient_id_for_rule_all(df, option1=["snv"], option2="prediction"), tool=immunogenicity_tools),
+        expand(config['results_folder'] + '/{patient_id}/08_immunogenicity/fusion_{patient_id}_{tool}.csv', patient_id=get_patient_id_for_rule_all(df, option1=["fusion"], option2="prediction"), tool=immunogenicity_tools),
+        expand(config['results_folder'] + '/{patient_id}/08_immunogenicity/sv_{patient_id}_{tool}.csv', patient_id=get_patient_id_for_rule_all(df, option1=["sv"], option2="prediction"), tool=immunogenicity_tools),
+        expand(config['results_folder'] + '/{patient_id}/08_immunogenicity/ms9mer_{patient_id}_{tool}.csv', patient_id=DIANN_PATIENTS, tool=immunogenicity_tools_ms9mer),
+        expand(config['results_folder'] + '/{patient_id}/08_immunogenicity/ms8mer_{patient_id}_{tool}.csv', patient_id=DIANN_PATIENTS, tool=immunogenicity_tools_ms8mer),
+        expand(config['results_folder'] + '/{patient_id}/09_diann/{patient_id}.stats.tsv', patient_id=DIANN_PATIENTS),
+        expand(config['results_folder'] + '/{patient_id}/09_diann/mutation_specific_results/all_tagged_peptides_classification.tsv', patient_id=DIANN_PATIENTS),
+        expand(config['results_folder'] + '/{patient_id}/09_diann/target_specific_results/all_tagged_peptides_classification.tsv', patient_id=DIANN_PATIENTS),
+        expand(config['results_folder'] + '/flags/99_database/{patient_id}.done', patient_id=get_patient_id_for_rule_all(df, option1=["database"])),

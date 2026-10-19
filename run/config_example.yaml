@@ -1,0 +1,28 @@
+patient_list: 'input.tsv'
+scratch: '/scratch'
+results_folder: '/results'
+logs_folder: '/logs'  
+singularity_env_folder: '/singularity_envs'
+p_group_file: '/ref/hla_nom_p.txt'
+gene_signatures_file: '/ref/gene_signatures_with_method.tsv'
+gene_signatures_PC1_file: '/ref/PC1_gene_sig_ref.tsv'
+gene_signatures_zscore_file: '/ref/z_score_gene_sig_ref.tsv'
+human_k9: 'human_k9.sqlite'
+purple_ref_dir: '/ref/purple'
+patient_database_path: 'cohort_database.db'
+
+params:
+  K_mer: 9
+  min_alt_base_snv : 0
+  min_fusion_read_support: 0
+  max_hamming_similarity: 1
+  max_blosum62_2_similarity: 1
+  hla_quality_threshold: 10
+reference:
+  GRCh38_fasta: 'GRCh38.fasta'
+  hla_rna_coord: '/ref/hlaidx_rna_coord.fa'
+  hla_rna_ref: '/ref/hlaidx_rna_seq.fa'
+  hla_dna_coord: '/ref/hlaidx_dna_coord.fa'
+  hla_dna_ref: '/ref/hlaidx_dna_seq.fa'
+
+  
