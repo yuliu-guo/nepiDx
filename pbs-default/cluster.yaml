@@ -1,0 +1,5 @@
+__default__:
+  group:  pbs_group
+  output: logs/clusterlogs/
+  error:  logs/clusterlogs/
+

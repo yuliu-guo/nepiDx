@@ -1,0 +1,24 @@
+## Define default Snakemake commandline arguments ##
+# Cluster parameters. These are unlikely to be changed
+cluster:        "pbs-submit.py -e {cluster.error} -o {cluster.output} -W group_list={cluster.group} -W umask=0007 -A {cluster.group}"
+cluster-status: "pbs-status.py"
+cluster-config: "/pbs-default/cluster.yaml"
+jobscript:      "pbs-jobscript.sh"
+max-jobs-per-second: 2
+max-status-checks-per-second: 5
+local-cores: 1
+immediate-submit: false
+latency-wait: 180
+rerun-incomplete: true
+printshellcmds: true
+rerun-trigger: mtime
+
+# Other parameters. Change to suit your needs
+# Run snakemake --help for an explanation of each parameter
+use-envmodules: true
+restart-times: 0
+jobs: 50
+keep-going: true
+default-resources:
+  - walltime_h=144
+  - mem_gb=40
