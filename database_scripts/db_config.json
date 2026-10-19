@@ -1,0 +1,9 @@
+{
+  "database_path": "/Path/to/database.db",
+  "gene_signatures_filepath": "/Path/to/gene_signatures_with_method.tsv",
+  "dataset_metadata_filepath": "/Path/to/metadata_full_table.txt",
+  "herv_load_filepath": "/Path/to/herv_cancer_type_for_database.csv",
+  "with_update": true,
+  "cohort_name": "cohort1",
+  "singularity_path": "/singularity_envs/python_for_db_env.sif"
+}
